@@ -4,10 +4,9 @@ import (
 	"L0-wb/database"
 	"L0-wb/kafka"
 	"L0-wb/models"
+	"L0-wb/service"
 	"log"
 	"net/http"
-
-	"L0-wb/cache"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +14,7 @@ import (
 func main() {
 	log.Println("Connecting to Database")
 	database.Connect()
+	service.RestoreCache()
 
 	log.Println("Starting Kafka Consumer")
 	go kafka.StartKafkaConsumer("localhost:9092", "orders", "go-consumer-group")
@@ -25,13 +25,15 @@ func main() {
 }
 
 func StartServer() {
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
 	r.GET("/order/:orderUid", func(c *gin.Context) {
 		orderUid := c.Param("orderUid")
 		var order models.Order
 
-		order, ok := cache.CacheMap[orderUid]
+		order, ok := service.GetFromCache(orderUid)
+
 		if !ok {
 			result := database.GetDB().
 				Preload("Items").
@@ -44,11 +46,12 @@ func StartServer() {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Order not found"})
 				return
 			}
-			cache.CacheMap[orderUid] = order
+			service.SaveToCache(orderUid, order)
 		}
 
 		c.JSON(http.StatusOK, order)
 	})
+	r.StaticFile("/", "./static/index.html")
 
-	r.Run(":8080")
+	r.Run(":8081")
 }

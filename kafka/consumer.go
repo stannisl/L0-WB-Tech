@@ -6,18 +6,23 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 )
 
 func StartKafkaConsumer(brokerAddress, topic, groupID string) {
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        []string{brokerAddress},
-		Topic:          topic,
-		GroupID:        groupID,
-		MinBytes:       10e3, // 10 кб (красное белое)
-		MaxBytes:       10e6, // 10 мб
-		CommitInterval: 0,
+
+		Brokers:           []string{brokerAddress},
+		Topic:             topic,
+		GroupID:           groupID,
+		CommitInterval:    0,
+		MaxWait:           2 * time.Second,
+		StartOffset:       kafka.FirstOffset,
+		HeartbeatInterval: 3 * time.Second,
+		SessionTimeout:    30 * time.Second,
+		RetentionTime:     24 * time.Hour,
 	})
 
 	log.Println("Kafka consumer started successfully")
@@ -25,20 +30,34 @@ func StartKafkaConsumer(brokerAddress, topic, groupID string) {
 	for {
 		msg, err := r.ReadMessage(context.Background())
 		if err != nil {
-			log.Printf("❌ error reading message: %v", err)
+			log.Printf("error reading message: %v", err)
 			continue
 		}
+		log.Printf("Processing message (offset: %d)", msg.Offset)
 
-		order := models.Order{}
-		if err := json.Unmarshal(msg.Value, &order); err != nil {
-			log.Printf("❌ error unmarshaling message: %v", err)
+		var order models.Order
+
+		if err = json.Unmarshal(msg.Value, &order); err != nil {
+			log.Printf("error unmarshaling message: %v", err)
+			if err := r.CommitMessages(context.Background(), msg); err != nil {
+				log.Printf("failed commit: %v", err)
+			}
 			continue
 		}
 
 		db := database.GetDB()
-		if err := db.Create(&order); err != nil {
-			log.Printf("❌ error creating order: %v", err)
+		tx := db.Begin()
+		if err = tx.Create(&order).Error; err != nil {
+			log.Printf("error creating order: %v", err)
+			tx.Rollback()
 			continue
 		}
+		tx.Commit()
+
+		if err := r.CommitMessages(context.Background(), msg); err != nil {
+			log.Printf("failed commit: %v", err)
+		}
+
+		log.Printf("Successfully processed and committed message (offset: %d, order_uid: %s)", msg.Offset, order.OrderUid)
 	}
 }

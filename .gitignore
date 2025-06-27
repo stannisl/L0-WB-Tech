@@ -26,6 +26,3 @@ out/
 
 *.prof
 *.trace
-
-# Json
-*.json

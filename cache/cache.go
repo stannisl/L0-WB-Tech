@@ -1,5 +1,11 @@
 package cache
 
-import "L0-wb/models"
+import (
+	"L0-wb/models"
+)
 
-var CacheMap = make(map[string]models.Order)
+var cacheMap = make(map[string]models.Order)
+
+func GetCache() map[string]models.Order {
+	return cacheMap
+}

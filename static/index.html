@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Order Lookup</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 2rem;
+            }
+            input {
+                padding: 0.5rem;
+                font-size: 1rem;
+            }
+            button {
+                padding: 0.5rem 1rem;
+                margin-left: 0.5rem;
+            }
+            pre {
+                background: #f3f3f3;
+                padding: 1rem;
+                white-space: pre-wrap;
+                border-radius: 5px;
+                margin-top: 1rem;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Order Info</h1>
+        <p>Enter <code>order_uid</code>:</p>
+        <input
+            type="text"
+            id="orderIdInput"
+            placeholder="e.g. b563feb7b2b84b6test"
+        />
+        <button onclick="fetchOrder()">Get Order</button>
+        <pre id="result">No data loaded.</pre>
+
+        <script>
+            async function fetchOrder() {
+                const orderId = document.getElementById("orderIdInput").value;
+                const resultElem = document.getElementById("result");
+                resultElem.textContent = "Loading...";
+
+                try {
+                    const response = await fetch(`/order/${orderId}`);
+                    if (!response.ok) {
+                        throw new Error("Order not found");
+                    }
+                    const data = await response.json();
+                    resultElem.textContent = JSON.stringify(data, null, 2);
+                } catch (err) {
+                    resultElem.textContent = `Error: ${err.message}`;
+                }
+            }
+        </script>
+    </body>
+</html>
