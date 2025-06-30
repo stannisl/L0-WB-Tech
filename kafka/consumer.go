@@ -5,10 +5,12 @@ import (
 	"L0-wb/models"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"gorm.io/gorm"
 )
 
 func StartKafkaConsumer(brokerAddress, topic, groupID string) {
@@ -33,7 +35,6 @@ func StartKafkaConsumer(brokerAddress, topic, groupID string) {
 			log.Printf("error reading message: %v", err)
 			continue
 		}
-		log.Printf("Processing message (offset: %d)", msg.Offset)
 
 		var order models.Order
 
@@ -49,7 +50,10 @@ func StartKafkaConsumer(brokerAddress, topic, groupID string) {
 
 		var existingOrder models.Order
 		if err := db.Where("order_uid = ?", order.OrderUid).First(&existingOrder).Error; err == nil {
-			log.Printf("order with uid = %s already exist", order.OrderUid)
+			log.Printf("error adding record from Kafka with offset = %v. Order with uid = %s already exists", msg.Offset, order.OrderUid)
+			continue
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("db error: %v", err)
 			continue
 		}
 
