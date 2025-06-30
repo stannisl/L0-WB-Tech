@@ -46,6 +46,13 @@ func StartKafkaConsumer(brokerAddress, topic, groupID string) {
 		}
 
 		db := database.GetDB()
+
+		var existingOrder models.Order
+		if err := db.Where("order_uid = ?", order.OrderUid).First(&existingOrder).Error; err == nil {
+			log.Printf("order with uid = %s already exist", order.OrderUid)
+			continue
+		}
+
 		tx := db.Begin()
 		if err = tx.Create(&order).Error; err != nil {
 			log.Printf("error creating order: %v", err)
